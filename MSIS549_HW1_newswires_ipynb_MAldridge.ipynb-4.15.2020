@@ -1,0 +1,1445 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "MSIS549_HW1_newswires.ipynb-MAldridge",
+      "provenance": [],
+      "collapsed_sections": [],
+      "include_colab_link": true
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.5.2"
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "language": "python",
+      "name": "python3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/mialdrid/Projects/blob/master/MSIS549_HW1_newswires_ipynb_MAldridge.ipynb-4.15.2020\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "_0lDkFZq3ohI",
+        "colab_type": "code",
+        "outputId": "23e34835-75f7-45f0-9afa-1c2014f22e40",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "%tensorflow_version 1.14\n",
+        "%matplotlib inline\n",
+        "import warnings\n",
+        "warnings.filterwarnings('ignore')\n",
+        "\n",
+        "import tensorflow as tf\n",
+        "tf.logging.set_verbosity(tf.logging.ERROR)\n",
+        "\n",
+        "import keras\n",
+        "keras.__version__\n",
+        "\n",
+        "!pip install numpy==1.16.1\n",
+        "import numpy as np"
+      ],
+      "execution_count": 1,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "`%tensorflow_version` only switches the major version: 1.x or 2.x.\n",
+            "You set: `1.14`. This will be interpreted as: `1.x`.\n",
+            "\n",
+            "\n",
+            "TensorFlow 1.x selected.\n"
+          ],
+          "name": "stdout"
+        },
+        {
+          "output_type": "stream",
+          "text": [
+            "Using TensorFlow backend.\n"
+          ],
+          "name": "stderr"
+        },
+        {
+          "output_type": "stream",
+          "text": [
+            "Requirement already satisfied: numpy==1.16.1 in /usr/local/lib/python3.6/dist-packages (1.16.1)\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "bu5jf9gW3ohR",
+        "colab_type": "text"
+      },
+      "source": [
+        "# Classifying newswires: a multi-class classification example\n",
+        "\n",
+        "In this homework, we will build a network to classify Reuters newswires into 46 different mutually-exclusive topics. Since we have many \n",
+        "classes, this problem is an instance of \"multi-class classification\", and since each data point should be classified into only one \n",
+        "category, the problem is more specifically an instance of \"single-label, multi-class classification\"."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "_-s49gXW3ohT",
+        "colab_type": "text"
+      },
+      "source": [
+        "## The Reuters dataset\n",
+        "\n",
+        "\n",
+        "We will be working with the _Reuters dataset_, a set of short newswires and their topics, published by Reuters in 1986. It's a very simple, \n",
+        "widely used toy dataset for text classification. There are 46 different topics; some topics are more represented than others, but each \n",
+        "topic has at least 10 examples in the training set.\n",
+        "\n",
+        "Like IMDB and MNIST, the Reuters dataset comes packaged as part of Keras. Let's take a look right away:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "yjSiBNZS3ohU",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from keras.datasets import reuters\n",
+        "\n",
+        "(train_data, train_labels), (test_data, test_labels) = reuters.load_data(num_words=10000)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "-VRrIjNI3ohX",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "Like with the IMDB dataset, the argument `num_words=10000` restricts the data to the 10,000 most frequently occurring words found in the \n",
+        "data.\n",
+        "\n",
+        "We have 8,982 training examples and 2,246 test examples:"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "FMdiLzvF3ohf",
+        "colab_type": "text"
+      },
+      "source": [
+        "As with the IMDB reviews, each example is a list of integers (word indices):"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "QriVgMSe3ohg",
+        "colab_type": "code",
+        "outputId": "f161e283-84fa-47e2-8d36-ead61ffa358c",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 1000
+        }
+      },
+      "source": [
+        "train_data[0]"
+      ],
+      "execution_count": 3,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "[1,\n",
+              " 2,\n",
+              " 2,\n",
+              " 8,\n",
+              " 43,\n",
+              " 10,\n",
+              " 447,\n",
+              " 5,\n",
+              " 25,\n",
+              " 207,\n",
+              " 270,\n",
+              " 5,\n",
+              " 3095,\n",
+              " 111,\n",
+              " 16,\n",
+              " 369,\n",
+              " 186,\n",
+              " 90,\n",
+              " 67,\n",
+              " 7,\n",
+              " 89,\n",
+              " 5,\n",
+              " 19,\n",
+              " 102,\n",
+              " 6,\n",
+              " 19,\n",
+              " 124,\n",
+              " 15,\n",
+              " 90,\n",
+              " 67,\n",
+              " 84,\n",
+              " 22,\n",
+              " 482,\n",
+              " 26,\n",
+              " 7,\n",
+              " 48,\n",
+              " 4,\n",
+              " 49,\n",
+              " 8,\n",
+              " 864,\n",
+              " 39,\n",
+              " 209,\n",
+              " 154,\n",
+              " 6,\n",
+              " 151,\n",
+              " 6,\n",
+              " 83,\n",
+              " 11,\n",
+              " 15,\n",
+              " 22,\n",
+              " 155,\n",
+              " 11,\n",
+              " 15,\n",
+              " 7,\n",
+              " 48,\n",
+              " 9,\n",
+              " 4579,\n",
+              " 1005,\n",
+              " 504,\n",
+              " 6,\n",
+              " 258,\n",
+              " 6,\n",
+              " 272,\n",
+              " 11,\n",
+              " 15,\n",
+              " 22,\n",
+              " 134,\n",
+              " 44,\n",
+              " 11,\n",
+              " 15,\n",
+              " 16,\n",
+              " 8,\n",
+              " 197,\n",
+              " 1245,\n",
+              " 90,\n",
+              " 67,\n",
+              " 52,\n",
+              " 29,\n",
+              " 209,\n",
+              " 30,\n",
+              " 32,\n",
+              " 132,\n",
+              " 6,\n",
+              " 109,\n",
+              " 15,\n",
+              " 17,\n",
+              " 12]"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 3
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "kIvaOPin3ohj",
+        "colab_type": "text"
+      },
+      "source": [
+        "Here's how you can decode it back to words, in case you are curious:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "EZg6ME3Y3ohk",
+        "colab_type": "code",
+        "outputId": "b99c8df1-cf0d-4588-c534-91dd473f0a63",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 54
+        }
+      },
+      "source": [
+        "word_index = reuters.get_word_index()\n",
+        "reverse_word_index = dict([(value, key) for (key, value) in word_index.items()])\n",
+        "# Note that our indices were offset by 3\n",
+        "# because 0, 1 and 2 are reserved indices for \"padding\", \"start of sequence\", and \"unknown\".\n",
+        "decoded_newswire = ' '.join([reverse_word_index.get(i - 3, '?') for i in train_data[0]])\n",
+        "\n",
+        "print(\"The decoded text:\" + decoded_newswire)"
+      ],
+      "execution_count": 4,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "The decoded text:? ? ? said as a result of its december acquisition of space co it expects earnings per share in 1987 of 1 15 to 1 30 dlrs per share up from 70 cts in 1986 the company said pretax net should rise to nine to 10 mln dlrs from six mln dlrs in 1986 and rental operation revenues to 19 to 22 mln dlrs from 12 5 mln dlrs it said cash flow per share this year should be 2 50 to three dlrs reuter 3\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "yntI1JS33oho",
+        "colab_type": "text"
+      },
+      "source": [
+        "The label associated with an example is an integer between 0 and 45: a topic index."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "swMqUzqz3ohq",
+        "colab_type": "code",
+        "outputId": "71c827a4-0eb0-4957-8175-537ce5118e4a",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        }
+      },
+      "source": [
+        "train_labels[0]"
+      ],
+      "execution_count": 5,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "3"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 5
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "fsLn40NK3oht",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Preparing the data\n",
+        "\n",
+        "We can vectorize the data with the exact same code as in our previous example:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "NDol7z_43ohu",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import numpy as np\n",
+        "\n",
+        "def vectorize_sequences(sequences, dimension=10000):\n",
+        "    results = np.zeros((len(sequences), dimension))\n",
+        "    for i, sequence in enumerate(sequences):\n",
+        "        results[i, sequence] = 1.\n",
+        "    return results\n",
+        "\n",
+        "# Our vectorized training data\n",
+        "x_train = vectorize_sequences(train_data)\n",
+        "# Our vectorized test data\n",
+        "x_test = vectorize_sequences(test_data)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "9pte7Qr63ohv",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "Use \"one-hot\" encoding to vectorize the labels. One-hot encoding is a widely used format for categorical data, also called \"categorical encoding\". In our case, one-hot encoding of our labels consists in embedding each label as an all-zero vector with a 1 in the place of the label index. Note that there is a built-in way to do this in Keras."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "XO_SmjOD3ohy",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from keras.utils.np_utils import to_categorical\n",
+        "\n",
+        "one_hot_train_labels = to_categorical(train_labels)\n",
+        "one_hot_test_labels = to_categorical(test_labels)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "rMvTFcc03ohz",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Building our network\n",
+        "\n",
+        "\n",
+        "This topic classification problem looks very similar to our previous movie review classification problem: in both cases, we are trying to \n",
+        "classify short snippets of text. There is however a new constraint here: the number of output classes has gone from 2 to 46, i.e. the \n",
+        "dimensionality of the output space is much larger. \n",
+        "\n",
+        "In a stack of `Dense` layers like what we were using, each layer can only access information present in the output of the previous layer. \n",
+        "If one layer drops some information relevant to the classification problem, this information can never be recovered by later layers: each \n",
+        "layer can potentially become an \"information bottleneck\". In our previous example, we were using 16-dimensional intermediate layers, but a \n",
+        "16-dimensional space may be too limited to learn to separate 46 different classes: such small layers may act as information bottlenecks, \n",
+        "permanently dropping relevant information.\n",
+        "\n",
+        "For this reason we will use larger layers. Let's go with 64 units:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "HdhwRTjx3ohz",
+        "colab_type": "code",
+        "outputId": "8661dae9-dea1-40d7-9ab2-4d5666cde039",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 255
+        }
+      },
+      "source": [
+        "from keras import models\n",
+        "from keras import layers\n",
+        "\n",
+        "# TODO: specify the architecture of the model.\n",
+        "#build the neural network with two hidden layers and relu as the activation function.\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(64, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(64, activation='relu'))\n",
+        "#add the output layer, with the softmax model\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "#print a summary of the network structure, parameters and output, via the summary function\n",
+        "model.summary()"
+      ],
+      "execution_count": 8,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Model: \"sequential_1\"\n",
+            "_________________________________________________________________\n",
+            "Layer (type)                 Output Shape              Param #   \n",
+            "=================================================================\n",
+            "dense_1 (Dense)              (None, 64)                640064    \n",
+            "_________________________________________________________________\n",
+            "dense_2 (Dense)              (None, 64)                4160      \n",
+            "_________________________________________________________________\n",
+            "dense_3 (Dense)              (None, 46)                2990      \n",
+            "=================================================================\n",
+            "Total params: 647,214\n",
+            "Trainable params: 647,214\n",
+            "Non-trainable params: 0\n",
+            "_________________________________________________________________\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "V-Aj666N3oh1",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "There are two other things you should note about this architecture:\n",
+        "\n",
+        "* We are ending the network with a `Dense` layer of size 46. This means that for each input sample, our network will output a \n",
+        "46-dimensional vector. Each entry in this vector (each dimension) will encode a different output class.\n",
+        "* The last layer uses a `softmax` activation. You have already seen this pattern in the MNIST example. It means that the network will \n",
+        "output a _probability distribution_ over the 46 different output classes, i.e. for every input sample, the network will produce a \n",
+        "46-dimensional output vector where `output[i]` is the probability that the sample belongs to class `i`. The 46 scores will sum to 1.\n",
+        "\n",
+        "The best loss function to use in this case is `categorical_crossentropy`. It measures the distance between two probability distributions: \n",
+        "in our case, between the probability distribution output by our network, and the true distribution of the labels. By minimizing the \n",
+        "distance between these two distributions, we train our network to output something as close as possible to the true labels."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "AhmA6zNZ3oh1",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# TODO: compile the model you just built\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "              loss='categorical_crossentropy',\n",
+        "              metrics=['accuracy'])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "TGB_cp8B3oh2",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Validating our approach\n",
+        "\n",
+        "Let's set apart 1,000 samples in our training data to use as a validation set:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Y3eyzgOA3oh2",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "x_val = x_train[:1000]\n",
+        "partial_x_train = x_train[1000:]\n",
+        "\n",
+        "y_val = one_hot_train_labels[:1000]\n",
+        "partial_y_train = one_hot_train_labels[1000:]"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "vIFUZkt43oh3",
+        "colab_type": "text"
+      },
+      "source": [
+        "Now let's train our network for 20 epochs:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "MM57jbod3oh3",
+        "colab_type": "code",
+        "outputId": "23014fa6-eab1-477a-9181-47e8e84c5199",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 714
+        }
+      },
+      "source": [
+        "# TODO: fit the model with the training dataset and provide validation data \n",
+        "# to help check overfitting\n",
+        "history = model.fit(partial_x_train, \n",
+        "                    partial_y_train, \n",
+        "                    epochs=20, \n",
+        "                    batch_size=512, \n",
+        "                    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 11,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/20\n",
+            "7982/7982 [==============================] - 1s 142us/step - loss: 2.5557 - accuracy: 0.5065 - val_loss: 1.7042 - val_accuracy: 0.6410\n",
+            "Epoch 2/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 1.3983 - accuracy: 0.7018 - val_loss: 1.2910 - val_accuracy: 0.7190\n",
+            "Epoch 3/20\n",
+            "7982/7982 [==============================] - 1s 127us/step - loss: 1.0404 - accuracy: 0.7761 - val_loss: 1.1262 - val_accuracy: 0.7470\n",
+            "Epoch 4/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.8152 - accuracy: 0.8297 - val_loss: 1.0099 - val_accuracy: 0.7930\n",
+            "Epoch 5/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.6468 - accuracy: 0.8662 - val_loss: 0.9523 - val_accuracy: 0.8140\n",
+            "Epoch 6/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.5203 - accuracy: 0.8919 - val_loss: 0.9125 - val_accuracy: 0.8130\n",
+            "Epoch 7/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.4141 - accuracy: 0.9113 - val_loss: 0.9066 - val_accuracy: 0.8060\n",
+            "Epoch 8/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 0.3377 - accuracy: 0.9278 - val_loss: 0.8651 - val_accuracy: 0.8190\n",
+            "Epoch 9/20\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.2805 - accuracy: 0.9380 - val_loss: 0.8769 - val_accuracy: 0.8160\n",
+            "Epoch 10/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 0.2342 - accuracy: 0.9450 - val_loss: 0.8848 - val_accuracy: 0.8210\n",
+            "Epoch 11/20\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.2031 - accuracy: 0.9486 - val_loss: 0.9145 - val_accuracy: 0.8210\n",
+            "Epoch 12/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.1756 - accuracy: 0.9530 - val_loss: 0.9220 - val_accuracy: 0.8240\n",
+            "Epoch 13/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 0.1622 - accuracy: 0.9551 - val_loss: 0.9259 - val_accuracy: 0.8160\n",
+            "Epoch 14/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 0.1470 - accuracy: 0.9536 - val_loss: 0.9672 - val_accuracy: 0.8080\n",
+            "Epoch 15/20\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.1347 - accuracy: 0.9569 - val_loss: 0.9943 - val_accuracy: 0.8060\n",
+            "Epoch 16/20\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.1299 - accuracy: 0.9557 - val_loss: 1.0100 - val_accuracy: 0.8100\n",
+            "Epoch 17/20\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.1219 - accuracy: 0.9578 - val_loss: 1.0220 - val_accuracy: 0.8080\n",
+            "Epoch 18/20\n",
+            "7982/7982 [==============================] - 1s 123us/step - loss: 0.1167 - accuracy: 0.9593 - val_loss: 1.0419 - val_accuracy: 0.8030\n",
+            "Epoch 19/20\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 0.1150 - accuracy: 0.9577 - val_loss: 1.0188 - val_accuracy: 0.8160\n",
+            "Epoch 20/20\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 0.1138 - accuracy: 0.9575 - val_loss: 1.0352 - val_accuracy: 0.8020\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Rq5P0gWQ3oh5",
+        "colab_type": "text"
+      },
+      "source": [
+        "Let's display its loss and accuracy curves to help identify when it starts to overfit."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "hLN9iXUZIRuL",
+        "colab_type": "code",
+        "outputId": "18510b51-cfbb-4262-e16a-b8c16bcb7c07",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        }
+      },
+      "source": [
+        "history_dict = history.history\n",
+        "history_dict.keys()"
+      ],
+      "execution_count": 12,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "dict_keys(['val_loss', 'val_accuracy', 'loss', 'accuracy'])"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 12
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "EIRFHE0U3oh5",
+        "colab_type": "code",
+        "outputId": "53fc1d08-a64b-4969-d735-b062fcacb1bc",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 295
+        }
+      },
+      "source": [
+        "import matplotlib.pyplot as plt\n",
+        "\n",
+        "# TODO: plot the model loss on both training and validation data. \n",
+        "loss = history.history['loss']\n",
+        "val_loss = history.history['val_loss']\n",
+        "acc = history.history['accuracy']\n",
+        "val_acc = history.history['val_accuracy']\n",
+        "\n",
+        "epochs = range(1, len(acc) + 1)\n",
+        "\n",
+        "# \"bo\" is for \"blue dot\"\n",
+        "plt.plot(epochs, loss, 'bo', label='Training loss')\n",
+        "# b is for \"solid blue line\"\n",
+        "plt.plot(epochs, val_loss, 'b', label='Validation loss')\n",
+        "plt.title('Training and validation loss')\n",
+        "plt.xlabel('Epochs')\n",
+        "plt.ylabel('Loss')\n",
+        "plt.legend()\n",
+        "\n",
+        "plt.show()\n"
+      ],
+      "execution_count": 13,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "image/png": "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qIgFCxbkOgwRkQbFzFLvKN9FVUMiIgVOiUBEpMApEYiIFLgG10YgItm3fft2Vq1axbZt22peWHKqZcuW9OzZk+bNm2e8jhKBiNRo1apVtGvXjqKiItI/V0hyzd1Zv349q1atom/fvhmvVxBVQzNmQFERNGkSXmfoMd4itbJt2zY6d+6sJJDnzIzOnTvXuuTW6EsEM2bARRdBefRIk5Urw3uA8ePTryciu1MSaBj25u/U6EsEkydXJoGE8vIwXURECiARvP9+7aaLSP5Zv349gwcPZvDgwey///706NFj1/svvvii2nUXLFjApZdeWuNnHH300fUS69y5czn55JPrZVvZ0ugTQe/Uh/zVMF1E6q6+2+U6d+7M4sWLWbx4MRMmTOCKK67Y9X6fffahoqIi7bolJSVMmzatxs948cUX6xZkAxZbIjCzXtEDtt8ws2VmdlkVy4wys41mtjgabqjvOKZOhdatd5/WunWYLiL1L9Eut3IluFe2y9X3RRqlpaVMmDCBESNGcM011/Dyyy9z1FFHUVxczNFHH81bb70F7H6GPmXKFM4//3xGjRpFv379dksQbdu23bX8qFGjOPPMMznkkEMYP348iV6aZ8+ezSGHHMLQoUO59NJLazzz/+STTzjttNMYOHAgRx55JEuWLAHg73//+64STXFxMZs3b2b16tUcd9xxDB48mCOOOIL58+fX7w6rRpyNxRXAVe6+yMzaAQvN7OnoYd/J5rt7bOWoRIPw5MmhOqh375AE1FAsEo/q2uXq+/9u1apVvPjiizRt2pRNmzYxf/58mjVrxjPPPMP111/Pww8/vMc6y5cv5/nnn2fz5s3079+fiRMn7nHN/auvvsqyZcvo3r07I0eO5B//+AclJSVcfPHFzJs3j759+zJu3Lga47vxxhspLi5m1qxZPPfcc5x77rksXryYW265hdtuu42RI0eyZcsWWrZsyfTp0/na177G5MmT2bFjB+WpOzFGsSUCd19NeOYr7r7ZzN4EegCpiSB248frwC+SLdlslzvrrLNo2rQpABs3buS8887j7bffxszYvn17leucdNJJtGjRghYtWrDffvuxZs0aevbsudsyw4cP3zVt8ODBlJWV0bZtW/r167fr+vxx48Yxffr0auN74YUXdiWjE044gfXr17Np0yZGjhzJlVdeyfjx4xk7diw9e/Zk2LBh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\n",
+            "text/plain": [
+              "<Figure size 432x288 with 1 Axes>"
+            ]
+          },
+          "metadata": {
+            "tags": [],
+            "needs_background": "light"
+          }
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "M69rtt143oh6",
+        "colab_type": "code",
+        "outputId": "aa4ef8dc-5339-4d73-f19e-16f02fc2aa74",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 295
+        }
+      },
+      "source": [
+        "# TODO: plot prediction accuracy on both training and validation data. \n",
+        "plt.clf()   # clear figure\n",
+        "acc = history.history['accuracy']\n",
+        "val_acc = history.history['val_accuracy']\n",
+        "\n",
+        "plt.plot(epochs, acc, 'bo', label='Training acc')\n",
+        "plt.plot(epochs, val_acc, 'b', label='Validation acc')\n",
+        "plt.title('Training and validation accuracy')\n",
+        "plt.xlabel('Epochs')\n",
+        "plt.ylabel('Loss')\n",
+        "plt.legend()\n",
+        "\n",
+        "plt.show()"
+      ],
+      "execution_count": 14,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "image/png": "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+GKys7MBaNOmDcXFxSxfvpyzzjoL8DeFpZKqhkQkFGPGQHCu2yU724+vbXvttdeu93/84x854YQTmDdvHi+++GLCa+qbNGmy631WVhYlJSV7NE8if/nLX9hnn32YM2cOhYWFVTZmR0mJQERCkZ8PBQXQtSuY+deCgj1vKE7Whg0b6NSpEwCPP/54ra//oIMOYvHixRQVFQEwceLEhHF07NiRBg0aMG7cOHbs2AHAySefzGOPPcbmoAFl7dq1tGjRgpycHCZNmgTA1q1bd01PBSUCEQlNfj4UFcHOnf417CQAcO2113L99dfTu3fval/AARoAAAyxSURBVP2CT1azZs146KGHGDhwIH379qVFixa0atVqt/kuv/xynnjiCXr27Mnnn3++q9QycOBABg0aRF5eHr169eKuu+4CYNy4cdx3330cccQRDBgwgJUrV9Z67Ino4fUikrTPPvuMQw45JOowIrdp0yaaN2+Oc44rrriCHj16cPXVV0cd1i7x/k56eL2ISC165JFH6NWrF4cddhgbNmzg0ksvjTqkGtFVQyIi1XT11VenVQmgplQiEBHJcEoEIiIZTolARCTDKRGIiGQ4JQIRqTNOOOEEXn311XLj7r33XkaMGJFwmeOPP57SS85PO+001q9fv9s8o0eP3nU9fyKTJk1i/vz5uz7feOONTJ06tTrhpy0lAhGpM4YMGcKECRPKjZswYULCjt8qmjJlCq1bt96jbVdMBLfccgsnnXTSHq0r3ejyURHZI1ddBcGjAWpNr15w772Jp59zzjnccMMNbNu2jcaNG1NUVMQ333zDsccey4gRI5gxYwY//PAD55xzDjfffPNuy+fm5lJYWEi7du0YM2YMTzzxBB06dKBz58707dsX8PcIFBQUsG3bNg444ADGjRvH7NmzmTx5Mm+//Ta33XYbzz33HLfeeitnnHEG55xzDtOmTeOaa66hpKSEI488kocffpgmTZqQm5vL0KFDefHFF9m+fTvPPvssBx98cLmYioqKuOiii/j+++8BeOCBB3Y9HOeOO+7gqaeeokGDBpx66qncfvvtLFq0iMsuu4zVq1eTlZXFs88+y/7771+j/a4SgYjUGW3atKFfv368/PLLgC8NnHfeeZgZY8aMobCwkLlz5/L2228zd+7chOuZOXMmEyZMYPbs2UyZMoUZM2bsmnb22WczY8YM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\n",
+            "text/plain": [
+              "<Figure size 432x288 with 1 Axes>"
+            ]
+          },
+          "metadata": {
+            "tags": [],
+            "needs_background": "light"
+          }
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "LUarkgZd3oh7",
+        "colab_type": "text"
+      },
+      "source": [
+        "It seems that the network starts overfitting after certain epochs. Let's train a new network from scratch for fewer epochs before it starts overfitting, then let's evaluate it on the test set:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "IciZ2dMP3oh8",
+        "colab_type": "code",
+        "outputId": "6d2191b8-e3a4-46b0-d998-0282b97ba84f",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "# TODO: retrain the model with the fewer epoches to avoid overfitting\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(64, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(64, activation='relu'))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 15,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 1s 133us/step - loss: 2.6352 - accuracy: 0.5122 - val_loss: 1.7626 - val_accuracy: 0.6100\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 129us/step - loss: 1.4514 - accuracy: 0.6874 - val_loss: 1.3333 - val_accuracy: 0.6970\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 1.0806 - accuracy: 0.7663 - val_loss: 1.1542 - val_accuracy: 0.7470\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "XQ3VcXyx3oh_",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "Your model should reach an accuracy of ~78%. With a balanced binary classification problem, the accuracy reached by a purely random classifier \n",
+        "would be 50%, but in our case it is closer to 19%, so our results seem pretty good, at least when compared to a random baseline."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "FEzjb1m33oiA",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Generating predictions on new data\n",
+        "\n",
+        "We can verify that the `predict` method of our model instance returns a probability distribution over all 46 topics. Let's generate topic \n",
+        "predictions for all of the test data:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "lIuTWvUq3oiB",
+        "colab_type": "code",
+        "outputId": "3a3d9c86-7e04-4c71-e1f8-51998317020e",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 238
+        }
+      },
+      "source": [
+        "# TODO: use the learnt neural network to make a prediction on \n",
+        "# the test data \n",
+        "model.predict(x_test)"
+      ],
+      "execution_count": 16,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "array([[2.48217315e-04, 5.13193244e-03, 2.69076554e-04, ...,\n",
+              "        8.50820288e-06, 1.65796573e-05, 5.40620676e-05],\n",
+              "       [3.40474676e-03, 2.69781291e-01, 1.57394707e-02, ...,\n",
+              "        7.42260925e-03, 1.08350752e-04, 6.04255591e-04],\n",
+              "       [8.97820015e-03, 4.17022437e-01, 1.37170143e-02, ...,\n",
+              "        9.33778659e-03, 1.03371602e-03, 3.17000179e-03],\n",
+              "       ...,\n",
+              "       [1.47056521e-03, 5.97822759e-03, 8.85224552e-04, ...,\n",
+              "        7.73756328e-05, 2.97931343e-04, 4.78132715e-04],\n",
+              "       [1.42581109e-03, 1.14899995e-02, 1.63666904e-03, ...,\n",
+              "        8.18162443e-05, 1.62152355e-04, 5.18100045e-04],\n",
+              "       [4.08024713e-03, 5.26522458e-01, 1.31495008e-02, ...,\n",
+              "        3.14868544e-03, 2.81023851e-04, 8.93045973e-04]], dtype=float32)"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 16
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "O1LzmGXx3oiB",
+        "colab_type": "text"
+      },
+      "source": [
+        "Each entry in `predictions` is a vector of length 46. **The** largest entry is the predicted class, i.e. the class with the highest probability:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "L3RyKAsw3oiB",
+        "colab_type": "code",
+        "outputId": "3bf6b56d-566a-4939-dd9f-1f6b69ee46fb",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 51
+        }
+      },
+      "source": [
+        "# TODO: evaluate model performan in terms of accuracy on prediction against the ground truth.\n",
+        "results = model.evaluate(x_test, one_hot_test_labels)\n",
+        "print(results)"
+      ],
+      "execution_count": 17,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "2246/2246 [==============================] - 0s 84us/step\n",
+            "[1.204392999171786, 0.7368655204772949]\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Pw3GlSYG3oiH",
+        "colab_type": "text"
+      },
+      "source": [
+        "## On the importance of having sufficiently large intermediate layers\n",
+        "\n",
+        "\n",
+        "We mentioned earlier that since our final outputs were 46-dimensional, we should avoid intermediate layers with much less than 46 hidden \n",
+        "units. Now let's try to see what happens when we introduce an information bottleneck by having intermediate layers significantly less than \n",
+        "46-dimensional, e.g. 4-dimensional."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "emfKokRe3oiH",
+        "colab_type": "code",
+        "outputId": "5ed31966-b817-4640-da02-c253f8c93217",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "# TODO: build a neural network with 4 neuron units in the hidden layer with the validation data \n",
+        "# and evaluate its performance on the test data.\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(4, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(4, activation='relu'))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 18,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 1s 93us/step - loss: 3.7568 - accuracy: 0.0462 - val_loss: 3.6780 - val_accuracy: 0.0550\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 82us/step - loss: 3.6038 - accuracy: 0.0688 - val_loss: 3.5393 - val_accuracy: 0.0730\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 83us/step - loss: 3.4558 - accuracy: 0.0866 - val_loss: 3.3989 - val_accuracy: 0.0760\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "M6wV_AR23oiI",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "You should see the model performance drop. This drop is mostly due to the fact that we are now trying to compress a lot of information (enough information to recover the separation hyperplanes of 46 classes) into an intermediate space that is too low-dimensional. The network is able to cram _most_ of the necessary information into these 8-dimensional representations, but not all of it."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "8bFLuR8b3oiI",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Try using larger or smaller hidden layers: 32 units, and 128 units, and see if you will be able to improve the model performance on the test data.\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "B1v7pFMGrEik",
+        "colab_type": "code",
+        "outputId": "00d91c09-bf6f-478c-f4d2-84e18aa93c24",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "# TODO: Try using larger or smaller hidden layers: 32 units, and 128 units\n",
+        "#32 units\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(32, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(32, activation='relu'))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 19,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 1s 111us/step - loss: 3.0044 - accuracy: 0.3561 - val_loss: 2.2723 - val_accuracy: 0.5800\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 97us/step - loss: 1.8833 - accuracy: 0.6452 - val_loss: 1.6394 - val_accuracy: 0.6610\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 99us/step - loss: 1.3994 - accuracy: 0.7095 - val_loss: 1.3863 - val_accuracy: 0.6960\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "aOhh4yVhK08w",
+        "colab_type": "code",
+        "outputId": "33c0a9f2-a5cb-42e0-81ac-c25f47bc5585",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "#128 units\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(128, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(128, activation='relu'))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 20,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 2s 192us/step - loss: 2.1547 - accuracy: 0.5420 - val_loss: 1.3763 - val_accuracy: 0.6910\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 176us/step - loss: 1.1089 - accuracy: 0.7557 - val_loss: 1.1125 - val_accuracy: 0.7610\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 177us/step - loss: 0.7756 - accuracy: 0.8330 - val_loss: 0.9975 - val_accuracy: 0.7870\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "MmRaJm_BK_P6",
+        "colab_type": "code",
+        "outputId": "1f3a7148-3bbf-4843-f8f1-ee2ff1c9d5e8",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 51
+        }
+      },
+      "source": [
+        "#print the results to evaluate\n",
+        "results = model.evaluate(x_test, one_hot_test_labels)\n",
+        "print(results)"
+      ],
+      "execution_count": 21,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "2246/2246 [==============================] - 0s 110us/step\n",
+            "[1.065367335415481, 0.7546749711036682]\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "qJ1JPiTErD7X",
+        "colab_type": "text"
+      },
+      "source": [
+        "\n",
+        "## We were using two hidden layers. Now try to use a single hidden layer, or three hidden layers, and see if you will be able to improve the model performance on the test data.\n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "6zukIClyrh3k",
+        "colab_type": "code",
+        "outputId": "08440150-9130-478d-8e1b-2291eea1740d",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "# TODO: Try to use a single hidden layer, or three hidden layers\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(64, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 22,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 1s 138us/step - loss: 2.4668 - accuracy: 0.5358 - val_loss: 1.7125 - val_accuracy: 0.6490\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 123us/step - loss: 1.4050 - accuracy: 0.7256 - val_loss: 1.3012 - val_accuracy: 0.7210\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 125us/step - loss: 1.0378 - accuracy: 0.7860 - val_loss: 1.1162 - val_accuracy: 0.7620\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "oyNscchvLWYp",
+        "colab_type": "code",
+        "outputId": "a31d36d4-0138-42e9-fa19-3e0151d8be28",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 51
+        }
+      },
+      "source": [
+        "#Print results to evaluate a single hidden layer\n",
+        "results = model.evaluate(x_test, one_hot_test_labels)\n",
+        "print(results)"
+      ],
+      "execution_count": 23,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "2246/2246 [==============================] - 0s 88us/step\n",
+            "[1.1748878577938062, 0.74799644947052]\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "TBy_iFZbLaEZ",
+        "colab_type": "code",
+        "outputId": "ea1b8f17-b9f6-45be-8c7e-3323c95156cb",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 136
+        }
+      },
+      "source": [
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(64, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(64, activation='relu'))\n",
+        "model.add(layers.Dense(64, activation='relu'))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=3, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 24,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/3\n",
+            "7982/7982 [==============================] - 1s 146us/step - loss: 2.6933 - accuracy: 0.4240 - val_loss: 1.8197 - val_accuracy: 0.5810\n",
+            "Epoch 2/3\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 1.5092 - accuracy: 0.6646 - val_loss: 1.3651 - val_accuracy: 0.7080\n",
+            "Epoch 3/3\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 1.1191 - accuracy: 0.7561 - val_loss: 1.2505 - val_accuracy: 0.7160\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "oqQ2O8c9LaPn",
+        "colab_type": "code",
+        "outputId": "4f5548dc-e27e-48ad-ae09-30deafc617a4",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 51
+        }
+      },
+      "source": [
+        "#print the results with three hidden layers\n",
+        "results = model.evaluate(x_test, one_hot_test_labels)\n",
+        "print(results)"
+      ],
+      "execution_count": 25,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "2246/2246 [==============================] - 0s 90us/step\n",
+            "[1.2838417749158633, 0.709260880947113]\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "gldwCoKB3oiI",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Wrapping up\n",
+        "\n",
+        "\n",
+        "Here's what you should take away from this example:\n",
+        "\n",
+        "* If you are trying to classify data points between N classes, your network should end with a `Dense` layer of size N.\n",
+        "* In a single-label, multi-class classification problem, your network should end with a `softmax` activation, so that it will output a \n",
+        "probability distribution over the N output classes.\n",
+        "* _Categorical crossentropy_ is almost always the loss function you should use for such problems. It minimizes the distance between the \n",
+        "probability distributions output by the network, and the true distribution of the targets.\n",
+        "* There are two ways to handle labels in multi-class classification:\n",
+        "    ** Encoding the labels via \"categorical encoding\" (also known as \"one-hot encoding\") and using `categorical_crossentropy` as your loss \n",
+        "function.\n",
+        "    ** Encoding the labels as integers and using the `sparse_categorical_crossentropy` loss function.\n",
+        "* If you need to classify data into a large number of categories, then you should avoid creating information bottlenecks in your network by having \n",
+        "intermediate layers that are too small."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "aKekl-HuGXiU",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Bonus Point\n",
+        "Can you think of other methods to further improve the model performance? Code it up and evaluate them."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "38I30otcrO-r",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 170
+        },
+        "outputId": "9740a65e-c8e9-41f7-8d59-e594640d0520"
+      },
+      "source": [
+        "# To increase the model accuracy, I am going to explore the effects of marginally increasing the epoch value.\n",
+        "# Run the model with epoch=4\n",
+        "model = models.Sequential()\n",
+        "model.add(layers.Dense(64, activation='relu', input_shape=(10000,)))\n",
+        "model.add(layers.Dense(46, activation='softmax'))\n",
+        "\n",
+        "model.compile(optimizer='rmsprop',\n",
+        "                loss='categorical_crossentropy',\n",
+        "                metrics=['accuracy'])\n",
+        "\n",
+        "history = model.fit(\n",
+        "    partial_x_train, \n",
+        "    partial_y_train, \n",
+        "    epochs=4, \n",
+        "    batch_size=512, \n",
+        "    validation_data=(x_val, y_val)\n",
+        ")"
+      ],
+      "execution_count": 26,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "Train on 7982 samples, validate on 1000 samples\n",
+            "Epoch 1/4\n",
+            "7982/7982 [==============================] - 1s 139us/step - loss: 2.6128 - accuracy: 0.5467 - val_loss: 1.8324 - val_accuracy: 0.6660\n",
+            "Epoch 2/4\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 1.4956 - accuracy: 0.7207 - val_loss: 1.3558 - val_accuracy: 0.7180\n",
+            "Epoch 3/4\n",
+            "7982/7982 [==============================] - 1s 126us/step - loss: 1.0863 - accuracy: 0.7888 - val_loss: 1.1388 - val_accuracy: 0.7620\n",
+            "Epoch 4/4\n",
+            "7982/7982 [==============================] - 1s 124us/step - loss: 0.8460 - accuracy: 0.8314 - val_loss: 1.0236 - val_accuracy: 0.7900\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "9NfzT4IHlbw5",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 51
+        },
+        "outputId": "0f4a70ab-3416-4f40-9fff-8610c18dd2b1"
+      },
+      "source": [
+        "# Print the results with 10 hidden layers\n",
+        "results = model.evaluate(x_test, one_hot_test_labels)\n",
+        "print(results)"
+      ],
+      "execution_count": 27,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "text": [
+            "2246/2246 [==============================] - 0s 90us/step\n",
+            "[1.102818206072066, 0.7675868272781372]\n"
+          ],
+          "name": "stdout"
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "0wVzrKAIm2P5",
+        "colab_type": "text"
+      },
+      "source": [
+        "The number of epochs effectively represents the number of times the training dataset is used to train the model. Increasing the number of epohcs increased overall model accuracy. However, it's important to be aware of possible model errors resulting from overfitting. Generally, more complicated models increase the risk of overfitting."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "l7CGM-0QrOrp",
+        "colab_type": "text"
+      },
+      "source": [
+        "# End of HW1"
+      ]
+    }
+  ]
+}
